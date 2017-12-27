@@ -1,4 +1,6 @@
 /*
+ * Copyright (c) 2017
+ *	The Regents of the himrock922.  All rights reserved.
  * Copyright (c) 1989, 1993
  *	The Regents of the University of California.  All rights reserved.
  *
@@ -33,23 +35,19 @@
 
 #ifndef lint
 static char copyright[] =
-"@(#) Copyright (c) 1989, 1993\n\
-	The Regents of the University of California.  All rights reserved.\n";
+"@(#) Copyright (c) 2017\n\
+	The Regents of the himrock922.  All rights reserved.\n";
 #endif /* not lint */
 
 #ifndef lint
-static char sccsid[] = "@(#)echo.c	8.1 (Berkeley) 5/31/93";
+static char sccsid[] = "@(#)echo.cpp	1.0(himrock922) 12/15/17";
 #endif /* not lint */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <iostream>
+#include <cstdlib>
+#include <string>
 
-int
-main(argc, argv)
-	int argc;
-	char *argv[];
-{
+int main(int argc, char *argv[]) {
 	int nflag;
 
 	/* This utility may NOT do getopt(3) option parsing. */
@@ -61,7 +59,7 @@ main(argc, argv)
 		nflag = 0;
 
 	while (*argv) {
-		(void)printf("%s", *argv);
+        fputs(*argv, stdout);
 		if (*++argv)
 			putchar(' ');
 	}

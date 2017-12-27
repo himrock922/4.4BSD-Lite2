@@ -1,201 +1,298 @@
-#	@(#)bsd.prog.mk	8.2 (Berkeley) 4/2/94
+#	from: @(#)bsd.prog.mk	5.26 (Berkeley) 6/25/91
+# $FreeBSD$
 
-.if !defined(NOINCLUDE) && exists(${.CURDIR}/../Makefile.inc)
-.include "${.CURDIR}/../Makefile.inc"
+.include <bsd.init.mk>
+.include <bsd.compiler.mk>
+
+.SUFFIXES: .out .o .c .cc .cpp .cxx .C .m .y .l .ln .s .S .asm
+
+# XXX The use of COPTS in modern makefiles is discouraged.
+.if defined(COPTS)
+.warning ${.CURDIR}: COPTS should be CFLAGS.
+CFLAGS+=${COPTS}
 .endif
 
-.SUFFIXES: .out .o .c .y .l .s .8 .7 .6 .5 .4 .3 .2 .1 .0
+.if ${MK_ASSERT_DEBUG} == "no"
+CFLAGS+= -DNDEBUG
+NO_WERROR=
+.endif
 
-.8.0 .7.0 .6.0 .5.0 .4.0 .3.0 .2.0 .1.0:
-	nroff -man ${.IMPSRC} > ${.TARGET}
+.if defined(DEBUG_FLAGS)
+CFLAGS+=${DEBUG_FLAGS}
+CXXFLAGS+=${DEBUG_FLAGS}
 
-CFLAGS+=${COPTS}
+.if ${MK_CTF} != "no" && ${DEBUG_FLAGS:M-g} != ""
+CTFFLAGS+= -g
+.endif
+.endif
 
+.if defined(PROG_CXX)
+PROG=	${PROG_CXX}
+.endif
+
+.if !empty(LDFLAGS:M-Wl,*--oformat,*) || !empty(LDFLAGS:M-static)
+MK_DEBUG_FILES=	no
+.endif
+
+.if defined(CRUNCH_CFLAGS)
+CFLAGS+=${CRUNCH_CFLAGS}
+.else
+.if ${MK_DEBUG_FILES} != "no" && empty(DEBUG_FLAGS:M-g) && \
+    empty(DEBUG_FLAGS:M-gdwarf-*)
+CFLAGS+= -g
+CTFFLAGS+= -g
+.endif
+.endif
+
+.if !defined(DEBUG_FLAGS)
 STRIP?=	-s
+.endif
 
-BINGRP?=	bin
-BINOWN?=	bin
-BINMODE?=	555
+.if defined(NO_ROOT)
+.if !defined(TAGS) || ! ${TAGS:Mpackage=*}
+TAGS+=		package=${PACKAGE:Uruntime}
+.endif
+TAG_ARGS=	-T ${TAGS:[*]:S/ /,/g}
+.endif
 
-LIBC?=		/usr/lib/libc.a
-LIBCOMPAT?=	/usr/lib/libcompat.a
-LIBCURSES?=	/usr/lib/libcurses.a
-LIBDBM?=	/usr/lib/libdbm.a
-LIBDES?=	/usr/lib/libdes.a
-LIBL?=		/usr/lib/libl.a
-LIBKDB?=	/usr/lib/libkdb.a
-LIBKRB?=	/usr/lib/libkrb.a
-LIBKVM?=	/usr/lib/libkvm.a
-LIBM?=		/usr/lib/libm.a
-LIBMP?=		/usr/lib/libmp.a
-LIBPC?=		/usr/lib/libpc.a
-LIBPLOT?=	/usr/lib/libplot.a
-LIBRESOLV?=	/usr/lib/libresolv.a
-LIBRPC?=	/usr/lib/sunrpc.a
-LIBTERM?=	/usr/lib/libterm.a
-LIBUTIL?=	/usr/lib/libutil.a
+.if defined(NO_SHARED) && (${NO_SHARED} != "no" && ${NO_SHARED} != "NO")
+LDFLAGS+= -static
+.endif
 
-.if defined(SHAREDSTRINGS)
-CLEANFILES+=strings
-.c.o:
-	${CC} -E ${CFLAGS} ${.IMPSRC} | xstr -c -
-	@${CC} ${CFLAGS} -c x.c -o ${.TARGET}
-	@rm -f x.c
+.if ${MK_DEBUG_FILES} != "no"
+PROG_FULL=${PROG}.full
+# Use ${DEBUGDIR} for base system debug files, else .debug subdirectory
+.if defined(BINDIR) && (\
+    ${BINDIR} == "/bin" ||\
+    ${BINDIR:C%/libexec(/.*)?%/libexec%} == "/libexec" ||\
+    ${BINDIR} == "/sbin" ||\
+    ${BINDIR:C%/usr/(bin|bsdinstall|libexec|lpr|sendmail|sm.bin|sbin|tests)(/.*)?%/usr/bin%} == "/usr/bin" ||\
+    ${BINDIR} == "/usr/lib" \
+     )
+DEBUGFILEDIR=	${DEBUGDIR}${BINDIR}
+.else
+DEBUGFILEDIR?=	${BINDIR}/.debug
+.endif
+.if !exists(${DESTDIR}${DEBUGFILEDIR})
+DEBUGMKDIR=
+.endif
+.else
+PROG_FULL=	${PROG}
 .endif
 
 .if defined(PROG)
+PROGNAME?=	${PROG}
+
 .if defined(SRCS)
 
-OBJS+=  ${SRCS:R:S/$/.o/g}
+OBJS+=  ${SRCS:N*.h:R:S/$/.o/g}
 
-${PROG}: ${OBJS} ${LIBC} ${DPADD}
-	${CC} ${LDFLAGS} -o ${.TARGET} ${OBJS} ${LDADD}
-
-.else defined(SRCS)
-
-SRCS= ${PROG}.c
-
-${PROG}: ${SRCS} ${LIBC} ${DPADD}
-	${CC} ${CFLAGS} -o ${.TARGET} ${.CURDIR}/${SRCS} ${LDADD}
-
-MKDEP=	-p
-
+.if target(beforelinking)
+beforelinking: ${OBJS}
+${PROG_FULL}: beforelinking
 .endif
-
-.if	!defined(MAN1) && !defined(MAN2) && !defined(MAN3) && \
-	!defined(MAN4) && !defined(MAN5) && !defined(MAN6) && \
-	!defined(MAN7) && !defined(MAN8) && !defined(NOMAN)
-MAN1=	${PROG}.0
-.endif
-.endif
-.if !defined(NOMAN)
-MANALL=	${MAN1} ${MAN2} ${MAN3} ${MAN4} ${MAN5} ${MAN6} ${MAN7} ${MAN8}
+${PROG_FULL}: ${OBJS}
+.if defined(PROG_CXX)
+	${CXX:N${CCACHE_BIN}} ${CXXFLAGS:N-M*} ${LDFLAGS} -o ${.TARGET} \
+	    ${OBJS} ${LDADD}
 .else
-MANALL=
+	${CC:N${CCACHE_BIN}} ${CFLAGS:N-M*} ${LDFLAGS} -o ${.TARGET} ${OBJS} \
+	    ${LDADD}
 .endif
-manpages: ${MANALL}
-
-_PROGSUBDIR: .USE
-.if defined(SUBDIR) && !empty(SUBDIR)
-	@for entry in ${SUBDIR}; do \
-		(echo "===> $$entry"; \
-		if test -d ${.CURDIR}/$${entry}.${MACHINE}; then \
-			cd ${.CURDIR}/$${entry}.${MACHINE}; \
-		else \
-			cd ${.CURDIR}/$${entry}; \
-		fi; \
-		${MAKE} ${.TARGET:S/realinstall/install/:S/.depend/depend/}); \
-	done
+.if ${MK_CTF} != "no"
+	${CTFMERGE} ${CTFFLAGS} -o ${.TARGET} ${OBJS}
 .endif
 
-.if !target(all)
-.MAIN: all
-all: ${PROG} ${MANALL} _PROGSUBDIR
+.else	# !defined(SRCS)
+
+.if !target(${PROG})
+.if defined(PROG_CXX)
+SRCS=	${PROG}.cc
+.else
+SRCS=	${PROG}.c
 .endif
 
-.if !target(clean)
-clean: _PROGSUBDIR
-	rm -f a.out [Ee]rrs mklog ${PROG}.core ${PROG} ${OBJS} ${CLEANFILES}
+# Always make an intermediate object file because:
+# - it saves time rebuilding when only the library has changed
+# - the name of the object gets put into the executable symbol table instead of
+#   the name of a variable temporary object.
+# - it's useful to keep objects around for crunching.
+OBJS+=	${PROG}.o
+
+.if target(beforelinking)
+beforelinking: ${OBJS}
+${PROG_FULL}: beforelinking
+.endif
+${PROG_FULL}: ${OBJS}
+.if defined(PROG_CXX)
+	${CXX:N${CCACHE_BIN}} ${CXXFLAGS:N-M*} ${LDFLAGS} -o ${.TARGET} \
+	    ${OBJS} ${LDADD}
+.else
+	${CC:N${CCACHE_BIN}} ${CFLAGS:N-M*} ${LDFLAGS} -o ${.TARGET} ${OBJS} \
+	    ${LDADD}
+.endif
+.if ${MK_CTF} != "no"
+	${CTFMERGE} ${CTFFLAGS} -o ${.TARGET} ${OBJS}
+.endif
+.endif # !target(${PROG})
+
+.endif # !defined(SRCS)
+
+.if ${MK_DEBUG_FILES} != "no"
+${PROG}: ${PROG_FULL} ${PROGNAME}.debug
+	${OBJCOPY} --strip-debug --add-gnu-debuglink=${PROGNAME}.debug \
+	    ${PROG_FULL} ${.TARGET}
+
+${PROGNAME}.debug: ${PROG_FULL}
+	${OBJCOPY} --only-keep-debug ${PROG_FULL} ${.TARGET}
 .endif
 
-.if !target(cleandir)
-cleandir: _PROGSUBDIR
-	rm -f a.out [Ee]rrs mklog ${PROG}.core ${PROG} ${OBJS} ${CLEANFILES}
-	rm -f .depend ${MANALL}
+.if	${MK_MAN} != "no" && !defined(MAN) && \
+	!defined(MAN1) && !defined(MAN2) && !defined(MAN3) && \
+	!defined(MAN4) && !defined(MAN5) && !defined(MAN6) && \
+	!defined(MAN7) && !defined(MAN8) && !defined(MAN9)
+MAN=	${PROG}.1
+MAN1=	${MAN}
+.endif
+.endif # defined(PROG)
+
+.if defined(_SKIP_BUILD)
+all:
+.else
+all: ${PROG} ${SCRIPTS}
+.if ${MK_MAN} != "no"
+all: all-man
+.endif
 .endif
 
-# some of the rules involve .h sources, so remove them from mkdep line
-.if !target(depend)
-depend: .depend _PROGSUBDIR
-.depend: ${SRCS}
 .if defined(PROG)
-	mkdep ${MKDEP} ${CFLAGS:M-[ID]*} ${.ALLSRC:M*.c}
+CLEANFILES+= ${PROG}
+.if ${MK_DEBUG_FILES} != "no"
+CLEANFILES+=	${PROG_FULL} ${PROGNAME}.debug
 .endif
+.endif
+
+.if defined(OBJS)
+CLEANFILES+= ${OBJS}
+.endif
+
+.include <bsd.libnames.mk>
+
+.if defined(PROG)
+.if !defined(NO_EXTRADEPEND)
+_EXTRADEPEND:
+.if defined(LDFLAGS) && !empty(LDFLAGS:M-nostdlib)
+.if defined(DPADD) && !empty(DPADD)
+	echo ${PROG_FULL}: ${DPADD} >> ${DEPENDFILE}
+.endif
+.else
+	echo ${PROG_FULL}: ${LIBC} ${DPADD} >> ${DEPENDFILE}
+.if defined(PROG_CXX)
+.if ${COMPILER_TYPE} == "clang" && empty(CXXFLAGS:M-stdlib=libstdc++)
+	echo ${PROG_FULL}: ${LIBCPLUSPLUS} >> ${DEPENDFILE}
+.else
+	echo ${PROG_FULL}: ${LIBSTDCPLUSPLUS} >> ${DEPENDFILE}
+.endif
+.endif
+.endif
+.endif	# !defined(NO_EXTRADEPEND)
 .endif
 
 .if !target(install)
-.if !target(beforeinstall)
-beforeinstall:
+
+.if defined(PRECIOUSPROG)
+.if !defined(NO_FSCHG)
+INSTALLFLAGS+= -fschg
 .endif
-.if !target(afterinstall)
-afterinstall:
+INSTALLFLAGS+= -S
 .endif
 
-realinstall: _PROGSUBDIR
+_INSTALLFLAGS:=	${INSTALLFLAGS}
+.for ie in ${INSTALLFLAGS_EDIT}
+_INSTALLFLAGS:=	${_INSTALLFLAGS${ie}}
+.endfor
+
+.if !target(realinstall) && !defined(INTERNALPROG)
+realinstall: _proginstall
+.ORDER: beforeinstall _proginstall
+_proginstall:
 .if defined(PROG)
-	install ${STRIP} -o ${BINOWN} -g ${BINGRP} -m ${BINMODE} \
-	    ${INSTALLFLAGS} ${PROG} ${DESTDIR}${BINDIR}
+	${INSTALL} ${TAG_ARGS} ${STRIP} -o ${BINOWN} -g ${BINGRP} -m ${BINMODE} \
+	    ${_INSTALLFLAGS} ${PROG} ${DESTDIR}${BINDIR}/${PROGNAME}
+.if ${MK_DEBUG_FILES} != "no"
+.if defined(DEBUGMKDIR)
+	${INSTALL} ${TAG_ARGS:D${TAG_ARGS},debug} -d ${DESTDIR}${DEBUGFILEDIR}/
 .endif
-.if defined(HIDEGAME)
-	(cd ${DESTDIR}/usr/games; rm -f ${PROG}; ln -s dm ${PROG}; \
-	    chown games.bin ${PROG})
+	${INSTALL} ${TAG_ARGS:D${TAG_ARGS},debug} -o ${BINOWN} -g ${BINGRP} -m ${DEBUGMODE} \
+	    ${PROGNAME}.debug ${DESTDIR}${DEBUGFILEDIR}/${PROGNAME}.debug
 .endif
-.if defined(LINKS) && !empty(LINKS)
-	@set ${LINKS}; \
-	while test $$# -ge 2; do \
-		l=${DESTDIR}$$1; \
-		shift; \
-		t=${DESTDIR}$$1; \
-		shift; \
-		echo $$t -\> $$l; \
-		rm -f $$t; \
-		ln $$l $$t; \
-	done; true
+.endif
+.endif	# !target(realinstall)
+
+.if defined(SCRIPTS) && !empty(SCRIPTS)
+realinstall: _scriptsinstall
+.ORDER: beforeinstall _scriptsinstall
+
+SCRIPTSDIR?=	${BINDIR}
+SCRIPTSOWN?=	${BINOWN}
+SCRIPTSGRP?=	${BINGRP}
+SCRIPTSMODE?=	${BINMODE}
+
+STAGE_AS_SETS+= scripts
+stage_as.scripts: ${SCRIPTS}
+FLAGS.stage_as.scripts= -m ${SCRIPTSMODE}
+STAGE_FILES_DIR.scripts= ${STAGE_OBJTOP}
+.for script in ${SCRIPTS}
+.if defined(SCRIPTSNAME)
+SCRIPTSNAME_${script:T}?=	${SCRIPTSNAME}
+.else
+SCRIPTSNAME_${script:T}?=	${script:T:R}
+.endif
+SCRIPTSDIR_${script:T}?=	${SCRIPTSDIR}
+SCRIPTSOWN_${script:T}?=	${SCRIPTSOWN}
+SCRIPTSGRP_${script:T}?=	${SCRIPTSGRP}
+SCRIPTSMODE_${script:T}?=	${SCRIPTSMODE}
+STAGE_AS_${script:T}=		${SCRIPTSDIR_${script:T}}/${SCRIPTSNAME_${script:T}}
+_scriptsinstall: _SCRIPTSINS_${script:T}
+_SCRIPTSINS_${script:T}: ${script}
+	${INSTALL} ${TAG_ARGS} -o ${SCRIPTSOWN_${.ALLSRC:T}} \
+	    -g ${SCRIPTSGRP_${.ALLSRC:T}} -m ${SCRIPTSMODE_${.ALLSRC:T}} \
+	    ${.ALLSRC} \
+	    ${DESTDIR}${SCRIPTSDIR_${.ALLSRC:T}}/${SCRIPTSNAME_${.ALLSRC:T}}
+.endfor
 .endif
 
-install: afterinstall maninstall
-afterinstall: realinstall
-realinstall: beforeinstall
+NLSNAME?=	${PROG}
+.include <bsd.nls.mk>
+
+.include <bsd.confs.mk>
+.include <bsd.files.mk>
+.include <bsd.incs.mk>
+.include <bsd.links.mk>
+
+.if ${MK_MAN} != "no"
+realinstall: maninstall
+.ORDER: beforeinstall maninstall
 .endif
+
+.endif	# !target(install)
 
 .if !target(lint)
-lint: ${SRCS} _PROGSUBDIR
+lint: ${SRCS:M*.c}
 .if defined(PROG)
-	@${LINT} ${LINTFLAGS} ${CFLAGS} ${.ALLSRC} | more 2>&1
+	${LINT} ${LINTFLAGS} ${CFLAGS:M-[DIU]*} ${.ALLSRC}
 .endif
 .endif
 
-.if !target(obj)
-.if defined(NOOBJ)
-obj: _PROGSUBDIR
-.else
-obj: _PROGSUBDIR
-	@cd ${.CURDIR}; rm -rf obj; \
-	here=`pwd`; dest=/usr/obj/`echo $$here | sed 's,/usr/src/,,'`; \
-	echo "$$here -> $$dest"; ln -s $$dest obj; \
-	if test -d /usr/obj -a ! -d $$dest; then \
-		mkdir -p $$dest; \
-	else \
-		true; \
-	fi;
-.endif
-.endif
-
-.if !target(objdir)
-.if defined(NOOBJ)
-objdir: _PROGSUBDIR
-.else
-objdir: _PROGSUBDIR
-	@cd ${.CURDIR}; \
-	here=`pwd`; dest=/usr/obj/`echo $$here | sed 's,/usr/src/,,'`; \
-	if test -d /usr/obj -a ! -d $$dest; then \
-		mkdir -p $$dest; \
-	else \
-		true; \
-	fi;
-.endif
-.endif
-
-.if !target(tags)
-tags: ${SRCS} _PROGSUBDIR
-.if defined(PROG)
-	-ctags -f /dev/stdout ${.ALLSRC} | \
-	    sed "s;${.CURDIR}/;;" > ${.CURDIR}/tags
-.endif
-.endif
-
-.if !defined(NOMAN)
+.if ${MK_MAN} != "no"
 .include <bsd.man.mk>
-.else
-maninstall:
 .endif
+
+.if defined(PROG)
+OBJS_DEPEND_GUESS+= ${SRCS:M*.h}
+.endif
+
+.include <bsd.dep.mk>
+.include <bsd.clang-analyze.mk>
+.include <bsd.obj.mk>
+.include <bsd.sys.mk>

@@ -1,1 +1,1 @@
-Mecho	echo.c	/^main(argc, argv)$/
+Mecho	echo.cc	/^main(argc, argv)$/
