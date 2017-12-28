@@ -1,6 +1,4 @@
 /*
- * Copyright (c) 2017
- *	The Regents of the himrock922.  All rights reserved.
  * Copyright (c) 1989, 1993
  *	The Regents of the University of California.  All rights reserved.
  *
@@ -12,10 +10,6 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
  * 4. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
@@ -35,12 +29,12 @@
 
 #ifndef lint
 static char copyright[] =
-"@(#) Copyright (c) 2017\n\
-	The Regents of the himrock922.  All rights reserved.\n";
+"@(#) Copyright (c) 1989, 1993\n\
+	The Regents of the University of California.  All rights reserved.\n";
 #endif /* not lint */
 
 #ifndef lint
-static char sccsid[] = "@(#)echo.cpp	1.0(himrock922) 12/15/17";
+static char sccsid[] = "@(#)echo.c	8.1 (Berkeley) 5/31/93";
 #endif /* not lint */
 
 #include <iostream>
