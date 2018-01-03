@@ -41,17 +41,13 @@ static char copyright[] =
 static char sccsid[] = "@(#)sleep.c	8.3 (Berkeley) 4/2/94";
 #endif /* not lint */
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <iostream>
+#include <cstdlib>
 #include <unistd.h>
 
-void usage __P((void));
+static void usage (void);
 
-int
-main(argc, argv)
-	int argc;
-	char *argv[];
-{
+int main(int argc, char *argv[]) {
 	int ch, secs;
 
 	while ((ch = getopt(argc, argv, "")) != EOF)
@@ -67,14 +63,11 @@ main(argc, argv)
 		usage();
 
 	if ((secs = atoi(*argv)) > 0)
-		(void)sleep(secs);
+		sleep(secs);
 	exit(0);
 }
 
-void
-usage()
-{
-
-	(void)fprintf(stderr, "usage: sleep seconds\n");
+static void usage() {
+	fprintf(stderr, "usage: sleep seconds\n");
 	exit(1);
 }
