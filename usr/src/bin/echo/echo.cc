@@ -39,25 +39,25 @@ static char sccsid[] = "@(#)echo.c	8.1 (Berkeley) 5/31/93";
 
 #include <iostream>
 #include <cstdlib>
-#include <string>
 
 int main(int argc, char *argv[]) {
-	int nflag;
+        using namespace std;
+        int nflag;
 
-	/* This utility may NOT do getopt(3) option parsing. */
-	if (*++argv && !strcmp(*argv, "-n")) {
-		++argv;
-		nflag = 1;
-	}
-	else
-		nflag = 0;
+        /* This utility may NOT do getopt(3) option parsing. */
+        if (*++argv && !strcmp(*argv, "-n")) {
+                ++argv;
+                nflag = 1;
+        }
+        else
+                nflag = 0;
 
-	while (*argv) {
-        fputs(*argv, stdout);
-		if (*++argv)
-			putchar(' ');
-	}
-	if (!nflag)
-		putchar('\n');
-	exit(0);
+        while (*argv) {
+                fputs(*argv, stdout);
+                if (*++argv)
+                        putchar(' ');
+        }
+        if (!nflag)
+                putchar('\n');
+        exit(EXIT_SUCCESS);
 }
