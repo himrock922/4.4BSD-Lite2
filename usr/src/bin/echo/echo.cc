@@ -37,27 +37,26 @@ static char copyright[] =
 static char sccsid[] = "@(#)echo.c	8.1 (Berkeley) 5/31/93";
 #endif /* not lint */
 
-#include <iostream>
+#include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
-int main(int argc, char *argv[]) {
-        using namespace std;
-        int nflag;
+int main(int, char *argv[]) {
+    bool nflag;
 
-        /* This utility may NOT do getopt(3) option parsing. */
-        if (*++argv && !strcmp(*argv, "-n")) {
-                ++argv;
-                nflag = 1;
-        }
-        else
-                nflag = 0;
+    /* This utility may NOT do getopt(3) option parsing. */
+    if (*++argv && !std::strcmp(*argv, "-n")) {
+        ++argv;
+        nflag = true;
+    }
+    else
+        nflag = false;
 
-        while (*argv) {
-                fputs(*argv, stdout);
-                if (*++argv)
-                        putchar(' ');
-        }
-        if (!nflag)
-                putchar('\n');
-        exit(EXIT_SUCCESS);
+    while (*argv) {
+        std::fputs(*argv, stdout);
+        if (*++argv)
+            std::putchar(' ');
+    }
+    if (!nflag)
+        std::putchar('\n');
 }
